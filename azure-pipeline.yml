@@ -7,6 +7,9 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  - group: 'non-prod'
+
 stages:
 - stage: Build
   displayName: 'Build Stage'
@@ -18,9 +21,9 @@ stages:
       inputs:
         versionSpec: '14.x'
       displayName: 'Install Node.js'
+
     - script: |
         npm install
-        npm run build
       displayName: 'Build Application'
 
 - stage: Test
@@ -41,9 +44,27 @@ stages:
   - job: PushDockerImageJob
     displayName: 'Push Docker Image Job'
     steps:
+    - task: Cache@2
+      displayName: Cache task
+      inputs:
+        key: 'docker | "$(Agent.OS)" | cache'
+        path: $(Pipeline.Workspace)/docker
+        cacheHitVar: CACHE_RESTORED                #Variable to set to 'true' when the cache is restored
+      
+    - script: |
+        docker load -i $(Pipeline.Workspace)/docker/cache.tar
+      displayName: Docker restore
+      condition: and(not(canceled()), eq(variables.CACHE_RESTORED, 'true'))
+
     - script: |
         docker build -t $(AZURE_CONTAINER_REGISTRY)/$(Build.Repository.Name):$(Build.BuildNumber) .
         docker login $(ACR_PASSWORD) -u $(ACR_USERNAME) -p $(AZURE_CONTAINER_REGISTRY)
         docker push $(AZURE_CONTAINER_REGISTRY)/$(Build.Repository.Name):$(Build.BuildNumber)
       displayName: 'Build and Push Docker Image'
+
+    - script: |
+        mkdir -p $(Pipeline.Workspace)/docker
+        docker save -o $(Pipeline.Workspace)/docker/cache.tar $(repository):$(tag)
+      displayName: Docker save
+      condition: and(not(canceled()), not(failed()), ne(variables.CACHE_RESTORED, 'true'))
 
