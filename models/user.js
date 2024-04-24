@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('./sequelize-prod'); // Import Sequelize instance for production
+const db = require('../configs/db');
 
-const User = sequelize.define('User', {
+const User = db.define('User', {
   name: {
     type: DataTypes.STRING,
     allowNull: false,

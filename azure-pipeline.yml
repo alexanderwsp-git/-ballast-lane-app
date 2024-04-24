@@ -1,0 +1,49 @@
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: 'Build Stage'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build Job'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '14.x'
+      displayName: 'Install Node.js'
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Build Application'
+
+- stage: Test
+  dependsOn: Build
+  displayName: 'Test Stage'
+  jobs:
+  - job: TestJob
+    displayName: 'Test Job'
+    steps:
+    - script: |
+        npm run test
+      displayName: 'Run Tests'
+
+- stage: PushDockerImage
+  dependsOn: Test
+  displayName: 'Push Docker Image Stage'
+  jobs:
+  - job: PushDockerImageJob
+    displayName: 'Push Docker Image Job'
+    steps:
+    - script: |
+        docker build -t $(AZURE_CONTAINER_REGISTRY)/$(Build.Repository.Name):$(Build.BuildNumber) .
+        docker login $(ACR_PASSWORD) -u $(ACR_USERNAME) -p $(AZURE_CONTAINER_REGISTRY)
+        docker push $(AZURE_CONTAINER_REGISTRY)/$(Build.Repository.Name):$(Build.BuildNumber)
+      displayName: 'Build and Push Docker Image'
+
